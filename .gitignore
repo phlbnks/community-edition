@@ -1,0 +1,5 @@
+*
+!compose.example.yml
+!README.md
+!./clickhouse/**
+!.gitignore

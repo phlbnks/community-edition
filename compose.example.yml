@@ -33,24 +33,20 @@ services:
       - 80:8000
       - 443:8001
     volumes:
-      - plausible-tmp:/tmp
+      - plausible-data:/var/lib/plausible
     environment:
       - BASE_URL=replace-me
       - SECRET_KEY_BASE=replace-me
       - TOTP_VAULT_KEY=replace-me
-      - DATA_DIR=/tmp
+      - DATA_DIR=/var/lib/plausible
       - SITE_ENCRYPT_DIRECTORY_URL=https://acme-v02.api.letsencrypt.org/directory
-      - SITE_ENCRYPT_DB_FOLDER=/tmp/site_encrypt_db
+      - SITE_ENCRYPT_DB_FOLDER=/var/lib/plausible/site_encrypt_db
       - SITE_ENCRYPT_MODE=auto
       - SITE_ENCRYPT_CLIENT=certbot
       - LOG_LEVEL=notice
 
 volumes:
   db-data:
-    driver: local
   event-data:
-    driver: local
   event-logs:
-    driver: local
-  plausible-tmp:
-    driver: local
+  plausible-data:

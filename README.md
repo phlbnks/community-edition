@@ -56,21 +56,22 @@ remote: Total 280 (delta 106), reused 86 (delta 71), pack-reused 134
 Receiving objects: 100% (280/280), 69.44 KiB | 7.71 MiB/s, done.
 Resolving deltas: 100% (136/136), done.
 $ ls hosting
-README.md           clickhouse/         docker-compose.yml  images/             plausible-conf.env  reverse-proxy/      upgrade/
+README.md           clickhouse/         docker-compose.yml  images/             plausible-conf.env  upgrade/
 ```
 
-In the downloaded directory you'll find two important files:
+In the downloaded directory you'll find one important file:
 
-- [docker-compose.yml](./docker-compose.yml) — installs and orchestrates networking between your Plausible CE server, Postgres database, and Clickhouse database for stats.
-- [plausible-conf.env](./plausible-conf.env) — configures the Plausible server itself. Full configuration options are documented [below.](#configure)
+- [docker-compose.yml](./docker-compose.yml) — installs and orchestrates networking between your Plausible CE server, Postgres database, and Clickhouse database for stats. It also configures the Plausible server itself with ENV variables. Full configuration options are documented [below.](#configure)
 
-Right now the latter looks like this:
+Right now the ENV looks like this:
 
-<sub><kbd>[plausible-conf.env](./plausible-conf.env)</kbd></sub>
-```env
-BASE_URL=replace-me
-SECRET_KEY_BASE=replace-me
-TOTP_VAULT_KEY=replace-me
+<sub><kbd>[docker-compose.yml](./docker-compose.yml)</kbd></sub>
+```yml
+plausible:
+  environment:
+    - BASE_URL=replace-me
+    - SECRET_KEY_BASE=replace-me
+    - TOTP_VAULT_KEY=replace-me
 ```
 
 Let's do as it asks and populate these required environment variables with our own values.
@@ -89,25 +90,24 @@ dsxvbn3jxDd16az2QpsX5B8O+llxjQ2SJE2i5Bzx38I=
 
 And then we decide on the [base URL](#base_url) where the instance would be accessible:
 
-<sub><kbd>plausible-conf.env</kbd></sub>
+<sub><kbd>[docker-compose.yml](./docker-compose.yml)</kbd></sub>
 ```diff
-- BASE_URL=replace-me
-+ BASE_URL=http://plausible.example.com
-- SECRET_KEY_BASE=replace-me
-+ SECRET_KEY_BASE=GLVzDZW04FzuS1gMcmBRVhwgd4Gu9YmSl/k/TqfTUXti7FLBd7aflXeQDdwCj6Cz
-- TOTP_VAULT_KEY=replace-me
-+ TOTP_VAULT_KEY=dsxvbn3jxDd16az2QpsX5B8O+llxjQ2SJE2i5Bzx38I=
+plausible:
+  environment:
+-    - BASE_URL=replace-me
++    - BASE_URL=https://plausible.example.com
+-    - SECRET_KEY_BASE=replace-me
++    - SECRET_KEY_BASE=GLVzDZW04FzuS1gMcmBRVhwgd4Gu9YmSl/k/TqfTUXti7FLBd7aflXeQDdwCj6Cz
+-    - TOTP_VAULT_KEY=replace-me
++    - TOTP_VAULT_KEY=dsxvbn3jxDd16az2QpsX5B8O+llxjQ2SJE2i5Bzx38I=
 ```
 
-We can start our instance now but the requests would be served over HTTP. Not cool! Let's configure [Caddy](https://caddyserver.com) to enable HTTPS.
+Now we can start out instance and once the databases are created and migrated and TLS certificate is issued, it would be ready to use!
 
-#### Caddy
-
-> [!TIP]
-> For other reverse-proxy setups please see [reverse-proxy](./reverse-proxy) docs.
+Note that we need to point DNS records for our base URL to the IP address of the instance. This is needed for Plausible to issue the TLS certificates.
 
 <details>
-<summary>Don't need reverse proxy?</summary>
+<summary>Using reverse proxy? Make sure to make thse changes!</summary>
 
 ---
 
@@ -117,57 +117,29 @@ If you're **opting out** of a reverse proxy and HTTPS, you'll need to adjust the
 ```diff
 plausible:
   ports:
--   - 127.0.0.1:8000:8000
-+   - 8000:8000
+-   - 8000:8000
++   - 127.0.0.1:8000:8000
 ```
 
 ---
 
 </details>
 
-First we need to point DNS records for our base URL to the IP address of the instance. This is needed for Caddy to issue the TLS certificates.
-
-Then we need to let Caddy know the domain name for which to issue the TLS certificate and the service to redirect the requests to.
-
-<sub><kbd>[reverse-proxy/docker-compose.caddy-gen.yml](./reverse-proxy/docker-compose.caddy-gen.yml)</kbd></sub>
-```diff
-  plausible:
-    labels:
--     virtual.host: "example.com" # change to your domain name
-+     virtual.host: "plausible.example.com"
-      virtual.port: "8000"
--     virtual.tls-email: "admin@example.com" # change to your email
-+     virtual.tls-email: "admin@plausible.example.com"
-```
-
-Finally we need to update the base URL to use HTTPS scheme.
-
-<sub><kbd>plausible-conf.env</kbd></sub>
-```diff
-- BASE_URL=http://plausible.example.com
-+ BASE_URL=https://plausible.example.com
-  SECRET_KEY_BASE=GLVzDZW04FzuS1gMcmBRVhwgd4Gu9YmSl/k/TqfTUXti7FLBd7aflXeQDdwCj6Cz
-  TOTP_VAULT_KEY=dsxvbn3jxDd16az2QpsX5B8O+llxjQ2SJE2i5Bzx38I=
-```
-
-Now we can start everything together.
 
 #### Launch
 
 <sub><kbd>console</kbd></sub>
 ```console
-$ docker compose -f docker-compose.yml -f reverse-proxy/docker-compose.caddy-gen.yml up -d
+$ docker compose up -d
 [+] Running 19/19
  ✔ plausible_db 9 layers [⣿⣿⣿⣿⣿⣿⣿]          Pulled
  ✔ plausible_events_db 7 layers [⣿⣿⣿⣿⣿⣿⣿]   Pulled
  ✔ plausible 7 layers [⣿⣿⣿⣿⣿⣿⣿]             Pulled
- ✔ caddy-gen 8 layers [⣿⣿⣿⣿⣿⣿⣿⣿]            Pulled
-[+] Running 5/5
+[+] Running 4/4
  ✔ Network hosting_default                  Created
  ✔ Container hosting-plausible_db-1         Started
  ✔ Container hosting-plausible_events_db-1  Started
  ✔ Container hosting-plausible-1            Started
- ✔ Container caddy-gen                      Started
 ```
 
 It takes some time to start PostgreSQL and ClickHouse, create the databases, and run the migrations. After about fifteen seconds you should be able to access your instance at the base URL and see the registration screen for the admin user.
@@ -208,7 +180,7 @@ $ docker compose rm plausible
 ? Going to remove hosting-plausible-1 Yes
 [+] Running 1/0
  ✔ Container hosting-plausible-1  Removed
-$ docker compose -f docker-compose.yml -f reverse-proxy/docker-compose.caddy-gen.yml up -d
+$ docker compose up -d
 [+] Running 8/8
  ✔ plausible 7 layers [⣿⣿⣿⣿⣿⣿⣿]      0B/0B      Pulled 6.4s
    ✔ 96526aa774ef Pull complete    0.4s
@@ -218,11 +190,10 @@ $ docker compose -f docker-compose.yml -f reverse-proxy/docker-compose.caddy-gen
    ✔ 724ddb9b523f Pull complete    2.8s
    ✔ 32581b0068b9 Pull complete    1.7s
    ✔ 4f4fb700ef54 Pull complete    2.0s
-[+] Running 4/4
+[+] Running 3/3
  ✔ Container hosting-plausible_events_db-1  Running    0.0s
  ✔ Container hosting-plausible_db-1         Running    0.0s
  ✔ Container hosting-plausible-1            Started    1.2s
- ✔ Container caddy-gen                      Running    0.0s
 $ docker images --filter=reference='ghcr.io/plausible/community-edition:*'
 REPOSITORY                            TAG           IMAGE ID       CREATED        SIZE
 ghcr.io/plausible/community-edition   v2.1          63f7c8708294   6 days ago     83.4MB
@@ -232,23 +203,19 @@ Untagged: ghcr.io/plausible/community-edition:v2.1.0-rc.0
 ...
 ```
 
-> [!TIP]
-> You can omit <kbd>-f docker-compose.yml -f reverse-proxy/docker-compose.caddy-gen.yml</kbd> if you are not using Caddy.
-
 Changes in major versions would involve performing a data migration (e.g. [v2.0.0](https://github.com/plausible/analytics/releases/tag/v2.0.0)) or some other extra step.
 
 ## Configure
 
-Plausible is configured with environment variables, by default supplied via [plausible-conf.env](./plausible-conf.env) [env_file.](./docker-compose.yml#L38-L39)
+Plausible is configured with environment variables, by default supplied via [environment.](./docker-compose.yml#L38-L39)
 
 > [!WARNING]
-> Note that if you start a container with one set of ENV vars and then update the ENV vars and restart the container, they won't take effect due to the immutable nature of the containers. The container needs to be **recreated.**
+> Note that if you start a container with one set of ENV vars and then update the ENV vars and restart the container, they won't take effect due to the immutable nature of the containers. The container needs to be **recreated,** e.g. by re-running `docker compose up -d`
 
 #### Example configurations
 
 Here's the minimal configuration file we got from the [quick start:](#quick-start)
 
-<sub><kbd>plausible-conf.env</kbd></sub>
 ```env
 BASE_URL=https://plausible.example.com
 SECRET_KEY_BASE=GLVzDZW04FzuS1gMcmBRVhwgd4Gu9YmSl/k/TqfTUXti7FLBd7aflXeQDdwCj6Cz
@@ -257,7 +224,6 @@ TOTP_VAULT_KEY=dsxvbn3jxDd16az2QpsX5B8O+llxjQ2SJE2i5Bzx38I=
 
 And here's a configuration with some extra options provided:
 
-<sub><kbd>plausible-conf.env</kbd></sub>
 ```env
 BASE_URL=https://plausible.example.com
 SECRET_KEY_BASE=GLVzDZW04FzuS1gMcmBRVhwgd4Gu9YmSl/k/TqfTUXti7FLBd7aflXeQDdwCj6Cz
@@ -284,7 +250,6 @@ Here're the currently supported ENV vars:
 
 Configures the base URL to use in link generation, doesn't have any defaults and needs to be provided in the ENV vars
 
-<sub><kbd>plausible-conf.env</kbd></sub>
 ```env
 BASE_URL=https://plausible.example.com
 ```
@@ -298,13 +263,11 @@ BASE_URL=https://plausible.example.com
 
 Configures the secret used for sessions in the dashboard, doesn't have any defaults and needs to be provided in the ENV vars, can be generated with OpenSSL:
 
-<sub><kbd>console</kbd></sub>
 ```console
 $ openssl rand -base64 48
 GLVzDZW04FzuS1gMcmBRVhwgd4Gu9YmSl/k/TqfTUXti7FLBd7aflXeQDdwCj6Cz
 ```
 
-<sub><kbd>plausible-conf.env</kbd></sub>
 ```env
 SECRET_KEY_BASE=GLVzDZW04FzuS1gMcmBRVhwgd4Gu9YmSl/k/TqfTUXti7FLBd7aflXeQDdwCj6Cz
 ```
@@ -318,16 +281,14 @@ SECRET_KEY_BASE=GLVzDZW04FzuS1gMcmBRVhwgd4Gu9YmSl/k/TqfTUXti7FLBd7aflXeQDdwCj6Cz
 
 Configures the secret used for encrypting TOTP secrets at rest using AES256-GCM, doesn't have any defaults and needs to be provided in the ENV vars, can be generated with OpenSSL:
 
-<sub><kbd>console</kbd></sub>
 ```console
 $ openssl rand -base64 32
 dsxvbn3jxDd16az2QpsX5B8O+llxjQ2SJE2i5Bzx38I=
 ```
 
-<sub><kbd>plausible-conf.env</kbd></sub>
 ```env
 TOTP_VAULT_KEY=dsxvbn3jxDd16az2QpsX5B8O+llxjQ2SJE2i5Bzx38I=
-``````
+```
 
 ### Registration
 
@@ -347,7 +308,6 @@ When enabled, new users need to verify their email addressby following a link de
 
 If something went wrong you can run this command to verify all users in the database:
 
-<sub><kbd>console</kbd></sub>
 ```console
 $ cd hosting # or wherever you cloned this repo
 $ docker compose exec plausible_db psql -U postgres -h localhost -d plausible_db -c "UPDATE users SET email_verified = true;"
@@ -400,7 +360,6 @@ Configures the URL for ClickHouse database.
 
 Enables Ecto to use IPv6 when connecting to the PostgreSQL database. Not set by default.
 
-<sub><kbd>plausible-conf.env</kbd></sub>
 ```env
 ECTO_IPV6=true
 ```
@@ -411,7 +370,6 @@ ECTO_IPV6=true
 
 Enables Ecto to use IPv6 when connecting to the ClickHouse database. Not set by default.
 
-<sub><kbd>plausible-conf.env</kbd></sub>
 ```env
 ECTO_CH_IPV6=true
 ```
@@ -424,7 +382,6 @@ For step-by-step integration with Google [see below.](#google-integration)
 
 The Client ID from the Google API Console for your project. Not set by default.
 
-<sub><kbd>plausible-conf.env</kbd></sub>
 ```env
 GOOGLE_CLIENT_ID=140927866833-002gqg48rl4iku76lbkk0qhu0i0m7bia.apps.googleusercontent.com
 ```
@@ -435,7 +392,6 @@ GOOGLE_CLIENT_ID=140927866833-002gqg48rl4iku76lbkk0qhu0i0m7bia.apps.googleuserco
 
 The Client Secret from the Google API Console for your project. Not set by default.
 
-<sub><kbd>plausible-conf.env</kbd></sub>
 ```env
 GOOGLE_CLIENT_SECRET=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
 ```
@@ -446,7 +402,6 @@ Plausible CE uses the country database created by [db-ip](https://db-ip.com/) fo
 
 Optionally, you can provide a different database. For example, you can use [MaxMind](https://www.maxmind.com) services and enable city-level geolocation:
 
-<sub><kbd>plausible-conf.env</kbd></sub>
 ```env
 BASE_URL=https://plausible.example.com
 SECRET_KEY_BASE=GLVzDZW04FzuS1gMcmBRVhwgd4Gu9YmSl/k/TqfTUXti7FLBd7aflXeQDdwCj6Cz
@@ -505,7 +460,6 @@ Instead of the default, you can replace this with <kbd>Bamboo.PostmarkAdapter</k
 
 Please try the new SMTP client introduced in [v2.1.0](https://github.com/plausible/analytics/discussions/4125) by setting MAILER_ADAPTER to `Bamboo.Mua`. All the `SMTP_*` environment variables can stay the same.
 
-<sub><kbd>plausible-conf.env</kbd></sub>
 ```diff
   BASE_URL=https://plausible.example.com
   SECRET_KEY_BASE=PkVcxRgQDfQyhPETlog3vvCrj5LdYFSv4ejPEJHJO+i/37w6RZfRjeVCpJayjUjJMfXsNurcv5upPhTRoD3KgQ==

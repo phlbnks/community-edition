@@ -23,16 +23,27 @@ services:
         hard: 262144
 
   plausible:
-    image: ghcr.io/plausible/community-edition:v2.1.1
+    image: ghcr.io/plausible/community-edition:v2.1.2
     restart: always
     command: sh -c "sleep 10 && /entrypoint.sh db createdb && /entrypoint.sh db migrate && /entrypoint.sh run"
     depends_on:
       - plausible_db
       - plausible_events_db
     ports:
-      - 127.0.0.1:8000:8000
-    env_file:
-      - plausible-conf.env
+      - 80:8000
+      - 443:8001
+    volumes:
+      - plausible-tmp:/tmp
+    environment:
+      - BASE_URL=replace-me
+      - SECRET_KEY_BASE=replace-me
+      - TOTP_VAULT_KEY=replace-me
+      - DATA_DIR=/tmp
+      - SITE_ENCRYPT_DIRECTORY_URL=https://acme-v02.api.letsencrypt.org/directory
+      - SITE_ENCRYPT_DB_FOLDER=/tmp/site_encrypt_db
+      - SITE_ENCRYPT_MODE=auto
+      - SITE_ENCRYPT_CLIENT=certbot
+      - LOG_LEVEL=notice
 
 volumes:
   db-data:
@@ -40,4 +51,6 @@ volumes:
   event-data:
     driver: local
   event-logs:
+    driver: local
+  plausible-tmp:
     driver: local
